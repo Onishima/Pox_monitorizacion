@@ -45,7 +45,7 @@ def _handle_PacketIn (event):
   eth_packet = event.parsed
   # Learn the source
   table[(event.connection,eth_packet.src)] = event.port
-
+  src_port = table.get((event.connection,eth_packet.src))
   dst_port = table.get((event.connection,eth_packet.dst))
   log.debug("EVENT_CONNECTION: %s , PACKET_DST: %s , DST_PORT: %s" % (event.connection, eth_packet.dst, dst_port))
   if dst_port is None:
@@ -98,6 +98,7 @@ def _handle_PacketIn (event):
 	msg.priority = 10000
         msg.actions.append(of.ofp_action_output(port = event.port))
         event.connection.send(msg)
+	log.debug("INSTALACION DE REGLAS: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s SRC_PORT: %s DST_PORT: %s" % (ip_packet.tos,ip_packet.dstip,ip_packet.srcip,ip_packet.protocol, dst_port, src_port))
 
 	msg = of.ofp_flow_mod()
 	msg.data = event.ofp # Forward the incoming packet
@@ -115,6 +116,7 @@ def _handle_PacketIn (event):
 	msg.priority = 10000
         msg.actions.append(of.ofp_action_output(port = dst_port))
         event.connection.send(msg)
+        log.debug("INSTALACION DE REGLAS: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s SRC_PORT: %s DST_PORT: %s" % (ip_packet.tos,ip_packet.srcip,ip_packet.dstip,ip_packet.protocol, src_port, dst_port))
 
 	#Crear el paquete sonda
 	i = pkt.ipv4(protocol=pkt.ipv4.ICMP_PROTOCOL,
@@ -127,8 +129,9 @@ def _handle_PacketIn (event):
 	e.set_payload(i)
 	msg = of.ofp_packet_out(in_port=of.OFPP_NONE)
 	msg.data = e.pack()
-	msg.actions.append(of.ofp_action_output(port = event.port))
+	msg.actions.append(of.ofp_action_output(port = dst_port))
 	event.connection.send(msg)
+	log.debug("SE ENVIA PAQUETE SONDA: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s PORT: %s" % (i.tos,ip_packet.srcip,ip_packet.dstip,pkt.ipv4.ICMP_PROTOCOL, event.port))
 
 def launch (disable_flood = False):
   global all_ports
