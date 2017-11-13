@@ -116,6 +116,20 @@ def _handle_PacketIn (event):
         msg.actions.append(of.ofp_action_output(port = dst_port))
         event.connection.send(msg)
 
+	#Crear el paquete sonda
+	i = pkt.ipv4(protocol=pkt.ipv4.ICMP_PROTOCOL,
+              srcip=ip_packet.srcip,
+              dstip=ip_packet.dstip)
+	i.tos = 5
+	e = pkt.ethernet(type=pkt.ethernet.IP_TYPE,
+                 src=eth_packet.src,
+                 dst=eth_packet.dst)
+	e.set_payload(i)
+	msg = of.ofp_packet_out(in_port=of.OFPP_NONE)
+	msg.data = e.pack()
+	msg.actions.append(of.ofp_action_output(port = event.port))
+	event.connection.send(msg)
+
 def launch (disable_flood = False):
   global all_ports
   if disable_flood:
