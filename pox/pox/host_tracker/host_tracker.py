@@ -289,7 +289,7 @@ class host_tracker (EventMixin):
 
     return ( None, False )
 
-  def updateIPInfo (self, pckt_srcip, macEntry, hasARP):
+  def updateIPInfo (self, pckt_srcip, macEntry, hasARP, event):
     """
     Update given MacEntry
 
@@ -308,7 +308,16 @@ class host_tracker (EventMixin):
       # new mapping
       ipEntry = IpEntry(hasARP)
       macEntry.ipAddrs[pckt_srcip] = ipEntry
-      log.info("Learned %s got IP %s", str(macEntry), str(pckt_srcip) )
+      log.info(":3 Learned %s got IP %s", str(macEntry), str(pckt_srcip) )
+      log.info("MAC: %s", str(macEntry.macaddr))
+      m = of.ofp_flow_mod()
+      m.match.dl_type = ethernet.IP_TYPE
+      m.match.dl_dst = macEntry.macaddr
+      m.priority = 20000
+      m.match.nw_proto = ipv4.ICMP_PROTOCOL
+      m.match.nw_tos = 0x64
+      m.actions.append(of.ofp_action_output(port=of.OFPP_CONTROLLER))
+      event.connection.send(m)
     if hasARP:
       ipEntry.pings.received()
 
@@ -388,7 +397,7 @@ class host_tracker (EventMixin):
 
     (pckt_srcip, hasARP) = self.getSrcIPandARP(packet.next)
     if pckt_srcip is not None:
-      self.updateIPInfo(pckt_srcip,macEntry,hasARP)
+      self.updateIPInfo(pckt_srcip,macEntry,hasARP,event)
 
     if self.eat_packets and packet.dst == self.ping_src_mac:
       return EventHalt
