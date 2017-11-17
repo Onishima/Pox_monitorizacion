@@ -30,7 +30,8 @@ log = core.getLogger()
 # which we last saw a packet *from* 'MAC-addr'.
 # (In this case, we use a Connection object for the switch.)
 table = {}
-
+D = {}
+monguer = 1
 
 # To send out all ports, we can use either of the special ports
 # OFPP_FLOOD or OFPP_ALL.  We'd like to just use OFPP_FLOOD,
@@ -57,13 +58,17 @@ def instalacion_regla_arp(event,eth_packet,dst_port):
   log.debug("Installing %s <-> %s" % (eth_packet.src, eth_packet.dst))
 
 def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
-  log.debug("LLEGA UN PAQUETE IP")
+  global monguer
+  log.debug("LLEGA UN PAQUETE IP: %s" % (monguer))
+  monguer += 1
+  D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip)] = monguer
+  log.debug("MONGUER: %s" % (D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip))))
+  log.debug(D)
   msg = of.ofp_flow_mod()
   msg.match.dl_type = eth_packet.type
   ip_packet = eth_packet.payload
   msg.match.nw_dst = ip_packet.srcip
   msg.match.nw_src = ip_packet.dstip
-  #log.debug("VALOR DEL DSCP/ToS: %d" % (event.ofp.data))
   if ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
     msg.match.nw_proto = ip_packet.protocol
   elif ip_packet.protocol == pkt.ipv4.TCP_PROTOCOL or ip_packet.protocol == pkt.ipv4.UDP_PROTOCOL:
@@ -137,7 +142,7 @@ def _handle_PacketIn (event):
     elif eth_packet.type == pkt.ethernet.IP_TYPE:
 	log.debug("LLEGA UN PAQUETE IP")
 	instalacion_regla_ip(event,eth_packet,dst_port,src_port)
-	envio_paquete_sonda(event,eth_packet,dst_port)
+	#envio_paquete_sonda(event,eth_packet,dst_port)
 
 def launch (disable_flood = False):
   global all_ports
