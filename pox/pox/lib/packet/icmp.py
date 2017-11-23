@@ -33,7 +33,7 @@
 import struct
 import random
 from packet_utils       import *
-
+from pox.core import core
 from packet_base import packet_base
 
 TYPE_ECHO_REPLY   = 0
@@ -59,6 +59,7 @@ _type_to_name = {
     11  : "TIME_EXCEED",
 }
 
+log = core.getLogger()
 
 # This is such a hack; someone really needs to rewrite the
 # stringizing.
@@ -94,7 +95,6 @@ class echo(packet_base):
 
         self.id  = random.randint(0, 65535)
         self.seq = 0
-
         if raw is not None:
             self.parse(raw)
 

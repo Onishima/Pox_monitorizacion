@@ -441,7 +441,6 @@ class Discovery (EventMixin):
     if link not in self.adjacency:
       self.adjacency[link] = time.time()
       log.info('link detected: %s', link)
-      log.info('DPID %s', event.dpid)
       self.raiseEventNoErrors(LinkEvent, True, link)
     else:
       # Just update timestamp

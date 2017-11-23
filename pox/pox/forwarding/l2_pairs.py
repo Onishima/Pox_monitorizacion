@@ -21,7 +21,8 @@ each pair of L2 addresses.
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
-
+import threading
+import time
 # Even a simple usage of the logger is much nicer than print!
 log = core.getLogger()
 
@@ -31,13 +32,38 @@ log = core.getLogger()
 # (In this case, we use a Connection object for the switch.)
 table = {}
 D = {}
-monguer = 1
+IDthread = 1
 
 # To send out all ports, we can use either of the special ports
 # OFPP_FLOOD or OFPP_ALL.  We'd like to just use OFPP_FLOOD,
 # but it's not clear if all switches support this, so we make
 # it selectable.
 all_ports = of.OFPP_FLOOD
+
+def envio_paquete_sonda(event,eth_packet,dst_port):
+  while True:
+    time.sleep(10)
+    log.debug("ENVIO PAQUETE SONDAAAAAAAAAAAAAA")
+
+    icmp=pkt.icmp()
+    icmp.type=pkt.TYPE_ECHO_REQUEST
+    echo=pkt.ICMP.echo(payload=str(time.time()))
+    icmp.payload=echo
+
+    ip_packet = eth_packet.payload
+    i = pkt.ipv4(protocol=pkt.ipv4.ICMP_PROTOCOL,srcip=ip_packet.srcip,dstip=ip_packet.dstip)
+    i.tos = 0x64
+    i.set_payload(icmp)
+
+    e = pkt.ethernet(type=pkt.ethernet.IP_TYPE,src=eth_packet.src,dst=eth_packet.dst)
+    e.set_payload(i)
+
+    msg = of.ofp_packet_out(in_port=of.OFPP_NONE)
+    msg.data = e.pack()
+    msg.actions.append(of.ofp_action_output(port = dst_port))
+    event.connection.send(msg)
+    log.debug("SE ENVIA PAQUETE SONDA: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s PORT: %s" % (i.tos,ip_packet.srcip,ip_packet.dstip,pkt.ipv4.ICMP_PROTOCOL, event.port))
+
 
 def instalacion_regla_arp(event,eth_packet,dst_port):
   msg = of.ofp_flow_mod()
@@ -57,12 +83,27 @@ def instalacion_regla_arp(event,eth_packet,dst_port):
   event.connection.send(msg)
   log.debug("Installing %s <-> %s" % (eth_packet.src, eth_packet.dst))
 
+
+def creacion_thread(event,eth_packet,dst_port,IDthread):
+  threads = list()
+  log.debug("NUEVO THREAAAAAAAAAAAAAAD")
+  t = threading.Thread(target=envio_paquete_sonda,args=(event,eth_packet,dst_port,),name=IDthread)
+  threads.append(t)
+  t.start()
+  IDthread += 1
+
+
 def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
-  global monguer
-  log.debug("LLEGA UN PAQUETE IP: %s" % (monguer))
-  monguer += 1
-  D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip)] = monguer
-  log.debug("MONGUER: %s" % (D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip))))
+  global IDthread
+
+  if eth_packet.payload.protocol == pkt.ipv4.ICMP_PROTOCOL and D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.protocol)) is None:
+    D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.protocol)] = IDthread
+    creacion_thread(event,eth_packet,dst_port,IDthread)
+  elif eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
+    if D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.payload.srcport,eth_packet.payload.payload.dstport,eth_packet.payload.protocol)) is None:
+      D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.payload.srcport,eth_packet.payload.payload.dstport,eth_packet.payload.protocol)] = IDthread
+      creacion_thread(event,eth_packet,dst_port,IDthread)
+
   log.debug(D)
   msg = of.ofp_flow_mod()
   msg.match.dl_type = eth_packet.type
@@ -79,7 +120,6 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
-  log.debug("INSTALACION DE REGLAS: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s SRC_PORT: %s DST_PORT: %s" % (ip_packet.tos,ip_packet.dstip,ip_packet.srcip,ip_packet.protocol, dst_port, src_port))
 
   msg = of.ofp_flow_mod()
   msg.data = event.ofp # Forward the incoming packet
@@ -97,26 +137,14 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = dst_port))
   event.connection.send(msg)
-  log.debug("INSTALACION DE REGLAS: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s SRC_PORT: %s DST_PORT: %s" % (ip_packet.tos,ip_packet.srcip,ip_packet.dstip,ip_packet.protocol, src_port, dst_port))
-
-def envio_paquete_sonda(event,eth_packet,dst_port):
-  #Crear el paquete sonda
-  ip_packet = eth_packet.payload
-  i = pkt.ipv4(protocol=pkt.ipv4.ICMP_PROTOCOL,srcip=ip_packet.srcip,dstip=ip_packet.dstip)
-  i.tos = 0x64
-  e = pkt.ethernet(type=pkt.ethernet.IP_TYPE,src=eth_packet.src,dst=eth_packet.dst)
-  e.set_payload(i)
-  msg = of.ofp_packet_out(in_port=of.OFPP_NONE)
-  msg.data = e.pack()
-  msg.actions.append(of.ofp_action_output(port = dst_port))
-  event.connection.send(msg)
-  log.debug("SE ENVIA PAQUETE SONDA: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s PORT: %s" % (i.tos,ip_packet.srcip,ip_packet.dstip,pkt.ipv4.ICMP_PROTOCOL, event.port))
-
-
+ 
 # Handle messages the switch has sent us because it has no
 # matching rule.
 def _handle_PacketIn (event):
+  #time when the packet is received
+  tr = time.time()
   eth_packet = event.parsed
+  log.debug("EL CONTROLADOR RECIBE UN PAQUETE")
   # Learn the source
   table[(event.connection,eth_packet.src)] = event.port
   src_port = table.get((event.connection,eth_packet.src))
@@ -137,12 +165,17 @@ def _handle_PacketIn (event):
     # Since we know the switch ports for both the source and dest
     # MACs, we can install rules for both directions.
     if eth_packet.type == pkt.ethernet.ARP_TYPE:
+	log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
 	instalacion_regla_arp(event,eth_packet,dst_port)
-
     elif eth_packet.type == pkt.ethernet.IP_TYPE:
-	log.debug("LLEGA UN PAQUETE IP")
-	instalacion_regla_ip(event,eth_packet,dst_port,src_port)
-	#envio_paquete_sonda(event,eth_packet,dst_port)
+	if eth_packet.payload.tos == 0x64:
+	  #time when the packet was created
+	  tc = eth_packet.payload.payload.payload.payload
+	  delay = tr - float(tc)
+	  log.debug("TIEMPO EN EL QUE FUE CREADO: %s TIEMPO EN EL QUE ES RECIBIDO: %s Delay: %s" % (tc,tr,delay))
+	else:
+	  log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+	  instalacion_regla_ip(event,eth_packet,dst_port,src_port)
 
 def launch (disable_flood = False):
   global all_ports
@@ -152,3 +185,4 @@ def launch (disable_flood = False):
   core.openflow.addListenerByName("PacketIn", _handle_PacketIn)
 
   log.info("Pair-Learning switch running.")
+
