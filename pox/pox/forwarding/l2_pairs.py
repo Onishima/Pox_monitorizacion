@@ -40,7 +40,7 @@ IDthread = 1
 # it selectable.
 all_ports = of.OFPP_FLOOD
 
-def envio_paquete_sonda(event,eth_packet,dst_port):
+def envio_paquete_sonda(event,eth_packet,dst_port,src_port):
   while True:
     time.sleep(10)
     log.debug("ENVIO PAQUETE SONDAAAAAAAAAAAAAA")
@@ -58,11 +58,11 @@ def envio_paquete_sonda(event,eth_packet,dst_port):
     e = pkt.ethernet(type=pkt.ethernet.IP_TYPE,src=eth_packet.src,dst=eth_packet.dst)
     e.set_payload(i)
 
-    msg = of.ofp_packet_out(in_port=of.OFPP_NONE)
+    msg = of.ofp_packet_out(in_port=src_port)
     msg.data = e.pack()
-    msg.actions.append(of.ofp_action_output(port = dst_port))
+    msg.actions.append(of.ofp_action_output(port = of.OFPP_ALL))
     event.connection.send(msg)
-    log.debug("SE ENVIA PAQUETE SONDA: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s PORT: %s" % (i.tos,ip_packet.srcip,ip_packet.dstip,pkt.ipv4.ICMP_PROTOCOL, event.port))
+    log.debug("SE ENVIA PAQUETE SONDA: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s PORT: %s" % (i.tos,ip_packet.srcip,ip_packet.dstip,pkt.ipv4.ICMP_PROTOCOL, of.OFPP_ALL))
 
 
 def instalacion_regla_arp(event,eth_packet,dst_port):
@@ -84,10 +84,10 @@ def instalacion_regla_arp(event,eth_packet,dst_port):
   log.debug("Installing %s <-> %s" % (eth_packet.src, eth_packet.dst))
 
 
-def creacion_thread(event,eth_packet,dst_port,IDthread):
+def creacion_thread(event,eth_packet,dst_port,src_port,IDthread):
   threads = list()
   log.debug("NUEVO THREAAAAAAAAAAAAAAD")
-  t = threading.Thread(target=envio_paquete_sonda,args=(event,eth_packet,dst_port,),name=IDthread)
+  t = threading.Thread(target=envio_paquete_sonda,args=(event,eth_packet,dst_port,src_port,),name=IDthread)
   threads.append(t)
   t.start()
   IDthread += 1
@@ -98,11 +98,11 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
 
   if eth_packet.payload.protocol == pkt.ipv4.ICMP_PROTOCOL and D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.protocol)) is None:
     D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.protocol)] = IDthread
-    creacion_thread(event,eth_packet,dst_port,IDthread)
+    creacion_thread(event,eth_packet,dst_port,src_port,IDthread)
   elif eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
     if D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.payload.srcport,eth_packet.payload.payload.dstport,eth_packet.payload.protocol)) is None:
       D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.payload.srcport,eth_packet.payload.payload.dstport,eth_packet.payload.protocol)] = IDthread
-      creacion_thread(event,eth_packet,dst_port,IDthread)
+      creacion_thread(event,eth_packet,dst_port,src_port,IDthread)
 
   log.debug(D)
   msg = of.ofp_flow_mod()

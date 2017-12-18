@@ -29,6 +29,7 @@ from pox.lib.util import dpid_to_str, str_to_bool
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
+import pox.openflow.switch_ports as swpo
 
 import struct
 import time
@@ -37,7 +38,7 @@ from random import shuffle, random
 
 
 log = core.getLogger()
-
+switch_ports = swpo.SwitchPort()
 
 class LLDPSender (object):
   """
@@ -437,7 +438,7 @@ class Discovery (EventMixin):
 
     link = Discovery.Link(originatorDPID, originatorPort, event.dpid,
                           event.port)
-
+    #log.info("ORIGINATORDPID: %s", originatorDPID)
     if link not in self.adjacency:
       self.adjacency[link] = time.time()
       log.info('link detected: %s', link)
