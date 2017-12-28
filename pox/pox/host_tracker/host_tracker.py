@@ -51,7 +51,7 @@ from pox.lib.recoco import Timer
 from pox.lib.revent import Event, EventHalt
 
 import pox.openflow.libopenflow_01 as of
-
+import pox.openflow.switch_ports as swpo
 import pox.openflow.discovery as discovery
 
 from pox.lib.revent.revent import *
@@ -309,6 +309,8 @@ class host_tracker (EventMixin):
       ipEntry = IpEntry(hasARP)
       macEntry.ipAddrs[pckt_srcip] = ipEntry
       log.info(":3 Learned %s got IP %s", str(macEntry), str(pckt_srcip) )
+      swpo.switch_host[str(macEntry.dpid)][str(pckt_srcip)] = macEntry.port
+      log.info(swpo.switch_host)
       log.info("MAC: %s", str(macEntry.macaddr))
       m = of.ofp_flow_mod()
       m.match.dl_type = ethernet.IP_TYPE

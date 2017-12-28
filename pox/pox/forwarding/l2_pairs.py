@@ -23,17 +23,18 @@ import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
 import threading
 import time
+import pox.openflow.switch_ports as swpo
 # Even a simple usage of the logger is much nicer than print!
 log = core.getLogger()
 
-
+SKYPE = 0.3
 # This table maps (switch,MAC-addr) pairs to the port on 'switch' at
 # which we last saw a packet *from* 'MAC-addr'.
 # (In this case, we use a Connection object for the switch.)
 table = {}
 D = {}
 IDthread = 1
-
+time_sleep = 1
 # To send out all ports, we can use either of the special ports
 # OFPP_FLOOD or OFPP_ALL.  We'd like to just use OFPP_FLOOD,
 # but it's not clear if all switches support this, so we make
@@ -41,34 +42,36 @@ IDthread = 1
 all_ports = of.OFPP_FLOOD
 
 def envio_paquete_sonda(event,eth_packet,dst_port,src_port):
+  global time_sleep
   while True:
-    time.sleep(10)
-    log.debug("ENVIO PAQUETE SONDAAAAAAAAAAAAAA")
-
+    time.sleep(time_sleep)
+    #log.debug("ENVIO PAQUETE SONDAAAAAAAAAAAAAA")
     icmp=pkt.icmp()
     icmp.type=pkt.TYPE_ECHO_REQUEST
-    echo=pkt.ICMP.echo(payload=str(time.time()))
-    icmp.payload=echo
+    for interface in swpo.d[event.connection.dpid]:
+    	list1 = [time.time(),event.connection.dpid,interface]
+    	str1 = ','.join(str(j) for j in list1)
+    	echo=pkt.ICMP.echo(payload=str1)
+    	icmp.payload=echo
 
-    ip_packet = eth_packet.payload
-    i = pkt.ipv4(protocol=pkt.ipv4.ICMP_PROTOCOL,srcip=ip_packet.srcip,dstip=ip_packet.dstip)
-    i.tos = 0x64
-    i.set_payload(icmp)
+    	ip_packet = eth_packet.payload
+    	i = pkt.ipv4(protocol=pkt.ipv4.ICMP_PROTOCOL,srcip=ip_packet.srcip,dstip=ip_packet.dstip)
+    	i.tos = 0x64
+    	i.set_payload(icmp)
 
-    e = pkt.ethernet(type=pkt.ethernet.IP_TYPE,src=eth_packet.src,dst=eth_packet.dst)
-    e.set_payload(i)
-
-    msg = of.ofp_packet_out(in_port=src_port)
-    msg.data = e.pack()
-    msg.actions.append(of.ofp_action_output(port = of.OFPP_ALL))
-    event.connection.send(msg)
+    	e = pkt.ethernet(type=pkt.ethernet.IP_TYPE,src=eth_packet.src,dst=eth_packet.dst)
+    	e.set_payload(i)
+    	msg = of.ofp_packet_out(in_port=src_port)
+    	msg.data = e.pack()
+        #log.debug("INTERFAZ: %s", interface)
+        msg.actions.append(of.ofp_action_output(port = interface))
+        event.connection.send(msg)
     log.debug("SE ENVIA PAQUETE SONDA: TOS: %s IP_SRC: %s IP_DEST: %s PROTOCOLO: %s PORT: %s" % (i.tos,ip_packet.srcip,ip_packet.dstip,pkt.ipv4.ICMP_PROTOCOL, of.OFPP_ALL))
 
 
 def instalacion_regla_arp(event,eth_packet,dst_port):
   msg = of.ofp_flow_mod()
   msg.match.dl_dst = eth_packet.src
-  #msg.match.dl_src = eth_packet.dst
   msg.match.dl_type = eth_packet.type
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
@@ -76,7 +79,6 @@ def instalacion_regla_arp(event,eth_packet,dst_port):
   # install the rule and also resend the packet.
   msg = of.ofp_flow_mod()
   msg.data = event.ofp # Forward the incoming packet
-  #msg.match.dl_src = eth_packet.src
   msg.match.dl_dst = eth_packet.dst
   msg.match.dl_type = eth_packet.type
   msg.actions.append(of.ofp_action_output(port = dst_port))
@@ -141,10 +143,11 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
 # Handle messages the switch has sent us because it has no
 # matching rule.
 def _handle_PacketIn (event):
+  global time_sleep
   #time when the packet is received
   tr = time.time()
   eth_packet = event.parsed
-  log.debug("EL CONTROLADOR RECIBE UN PAQUETE")
+  log.debug("_HANDLE_PACKETIN")
   # Learn the source
   table[(event.connection,eth_packet.src)] = event.port
   src_port = table.get((event.connection,eth_packet.src))
@@ -161,21 +164,60 @@ def _handle_PacketIn (event):
     event.connection.send(msg)
     #######################################################
   else:
-    log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
     # Since we know the switch ports for both the source and dest
     # MACs, we can install rules for both directions.
     if eth_packet.type == pkt.ethernet.ARP_TYPE:
-	log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+	#log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
 	instalacion_regla_arp(event,eth_packet,dst_port)
     elif eth_packet.type == pkt.ethernet.IP_TYPE:
 	if eth_packet.payload.tos == 0x64:
+	  log.debug("SE RECIBE UN PAQUETE SONDA")
 	  #time when the packet was created
-	  tc = eth_packet.payload.payload.payload.payload
-	  delay = tr - float(tc)
-	  log.debug("TIEMPO EN EL QUE FUE CREADO: %s TIEMPO EN EL QUE ES RECIBIDO: %s Delay: %s" % (tc,tr,delay))
+	  str2 = eth_packet.payload.payload.payload.payload
+	  list2 = str2.split(',')
+	  #log.debug("PAYLOAD: %s", list2)
+	  delay = tr - float(list2[0])
+	  switch = list2[1]
+	  switch_interface = list2[2]
+	  old_q_value = swpo.q_table[switch][switch_interface]
+	  swpo.q_table[switch][switch_interface] = swpo.q_table[switch][switch_interface] + 0.85*(delay - swpo.q_table[switch][switch_interface])
+	  swpo.diff_q_table[switch][switch_interface] = abs(old_q_value - swpo.q_table[switch][switch_interface])
+	  b = False
+	  key_list = swpo.diff_q_table[switch].keys()
+	  for j in key_list:
+	    if round(swpo.diff_q_table[switch][j],1) != 0.0:
+	      b = True
+	  if b == False:
+	    time_sleep = 10
+	  """
+	  log.debug("Diferencia: %s" % swpo.diff_q_table[switch][switch_interface])
+	  """
+	  log.debug("DIF_Q_TABLE: %s" % swpo.diff_q_table)
+	  log.debug("Q_TABLE: %s", swpo.q_table)
+	  log.debug("Paquete recibido por el switch %s , enviado por su interfaz %s con un delay total %s" % (switch,switch_interface,delay))
+	  log.debug("TIEMPO EN EL QUE FUE CREADO: %s TIEMPO EN EL QUE ES RECIBIDO: %s Delay: %s" % (list2[0],tr,delay))
 	else:
-	  log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
-	  instalacion_regla_ip(event,eth_packet,dst_port,src_port)
+	  log.debug("SE RECIBE UN PAQUETE COMUN")
+	  if eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
+	    tcp_udp_port = eth_packet.payload.payload.dstport
+	    if tcp_udp_port == 12000:
+	      if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
+	        dst_port_rl = 0
+	        for x in swpo.q_table[str(event.connection.dpid)].keys():
+		  if dst_port_rl == 0:
+		    dst_port_rl = x
+		  elif round(swpo.q_table[str(event.connection.dpid)][x],1) <= 0.4 and swpo.q_table[str(event.connection.dpid)][x] <= swpo.q_table[str(event.connection.dpid)][dst_port_rl]:
+		    dst_port_rl = x
+		dst_port = int(dst_port_rl)
+	        log.debug("Switch que genera el paquete SKYPE: %s" % event.connection.dpid)
+	        log.debug("PUERTO ESCOGIDO: %s" % dst_port_rl)
+	      else:
+	        src_port = event.port
+	      log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+	      instalacion_regla_ip(event,eth_packet,dst_port,src_port)
+	  else:
+	    log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+            instalacion_regla_ip(event,eth_packet,dst_port,src_port)
 
 def launch (disable_flood = False):
   global all_ports

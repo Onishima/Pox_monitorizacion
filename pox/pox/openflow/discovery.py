@@ -34,11 +34,11 @@ import pox.openflow.switch_ports as swpo
 import struct
 import time
 from collections import namedtuple
-from random import shuffle, random
+from random import shuffle, random, uniform
 
 
 log = core.getLogger()
-switch_ports = swpo.SwitchPort()
+#switch_ports = swpo.SwitchPort()
 
 class LLDPSender (object):
   """
@@ -441,6 +441,9 @@ class Discovery (EventMixin):
     #log.info("ORIGINATORDPID: %s", originatorDPID)
     if link not in self.adjacency:
       self.adjacency[link] = time.time()
+      swpo.d[originatorDPID].append(originatorPort)
+      swpo.q_table[str(originatorDPID)][str(originatorPort)] = uniform(0.0, 99.9)
+      log.info('q_table: %s', swpo.q_table)
       log.info('link detected: %s', link)
       self.raiseEventNoErrors(LinkEvent, True, link)
     else:
