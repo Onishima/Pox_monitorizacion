@@ -35,7 +35,7 @@ SKYPE = 0.3
 table = {}
 D = {}
 IDthread = 1
-time_sleep = 5
+time_sleep = 2.5
 # To send out all ports, we can use either of the special ports
 # OFPP_FLOOD or OFPP_ALL.  We'd like to just use OFPP_FLOOD,
 # but it's not clear if all switches support this, so we make
@@ -102,12 +102,6 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.protocol)] = IDthread
     creacion_thread(event,eth_packet,dst_port,src_port,IDthread)
 
-  """  
-  elif eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
-    if D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.payload.srcport,eth_packet.payload.payload.dstport,eth_packet.payload.protocol)) is None:
-      D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.payload.srcport,eth_packet.payload.payload.dstport,eth_packet.payload.protocol)] = IDthread
-      creacion_thread(event,eth_packet,dst_port,src_port,IDthread)
-  """
 
   ip_packet = eth_packet.payload
   if ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
@@ -128,18 +122,12 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
   msg.match.nw_src = ip_packet.dstip
   if ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
     msg.match.nw_proto = ip_packet.protocol
-    """
-    log.debug("EVENT CONNECTION DPID: %s SWPO.D: %s" % (event.connection.dpid, swpo.d[event.connection.dpid]))
-    if not str(ip_packet.srcip) in swpo.src_dst_app.keys():
-      for interface in swpo.d[event.connection.dpid]:
-        swpo.src_dst_app[str(ip_packet.srcip)][str(ip_packet.dstip)][interface] = [uniform(0.0, 1.0),uniform(0.0, 1.0),uniform(0.0, 1.0)]
-    """
   elif ip_packet.protocol == pkt.ipv4.TCP_PROTOCOL or ip_packet.protocol == pkt.ipv4.UDP_PROTOCOL:
     msg.match.nw_proto = ip_packet.protocol
     l4_packet = ip_packet.payload
     msg.match.tp_dst = l4_packet.srcport
     msg.match.tp_src = l4_packet.dstport
-    msg.hard_timeout = 6
+    msg.hard_timeout = 10
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
@@ -152,17 +140,12 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
   msg.match.nw_dst = ip_packet.dstip
   if ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
     msg.match.nw_proto = ip_packet.protocol
-    """
-    if not str(ip_packet.dstip) in swpo.src_dst_app.keys():
-      for interface in swpo.d[event.connection.dpid]:
-        swpo.src_dst_app[str(ip_packet.dstip)][str(ip_packet.srcip)][interface] = [uniform(0.0, 1.0),uniform(0.0, 1.0),uniform(0.0, 1.0)]
-    """
   elif ip_packet.protocol == pkt.ipv4.TCP_PROTOCOL or ip_packet.protocol == pkt.ipv4.UDP_PROTOCOL:
     msg.match.nw_proto = ip_packet.protocol
     l4_packet = ip_packet.payload
     msg.match.tp_src = l4_packet.srcport
     msg.match.tp_dst = l4_packet.dstport
-    msg.hard_timeout = 6
+    msg.hard_timeout = 10
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = dst_port))
   event.connection.send(msg)
@@ -242,12 +225,13 @@ def _handle_PacketIn (event):
 	    ################APP1###############
 	    if tcp_udp_port == 12000:
 	      log.debug("PAQUETE 12000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-	      log.debug("SWPO.SW_INT_DELAY.KEYS: %s" % (swpo.sw_int_delay[str(event.connection.dpid)].keys()))
 	      if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
+		 #log.debug("swpo.sw_int_delay[event.connection.dpid].keys(): %s" % swpo.sw_int_delay[str(event.connection.dpid)].keys())
 		 for key2 in swpo.sw_int_delay[str(event.connection.dpid)].keys():
 		   if swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][0] < q_use_min:
 		     dst_port_rl = int(key2)
 		     q_use_min = swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][0]
+		     #log.debug("dst_port_rl: %s , q_use_min: %s" % (dst_port_rl, q_use_min))
 		 dst_port = dst_port_rl
 	      else:
 		src_port = event.port
@@ -257,7 +241,6 @@ def _handle_PacketIn (event):
             ################APP2###############
             if tcp_udp_port == 13000:
               log.debug("PAQUETE 13000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-              log.debug("SWPO.SW_INT_DELAY.KEYS: %s" % (swpo.sw_int_delay[str(event.connection.dpid)].keys()))
               if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
                  for key2 in swpo.sw_int_delay[str(event.connection.dpid)].keys():
                    if swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][1] < q_use_min:
@@ -272,7 +255,6 @@ def _handle_PacketIn (event):
             ################APP3###############
             if tcp_udp_port == 14000:
               log.debug("PAQUETE 14000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-              log.debug("SWPO.SW_INT_DELAY.KEYS: %s" % (swpo.sw_int_delay[str(event.connection.dpid)].keys()))
               if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
                  for key2 in swpo.sw_int_delay[str(event.connection.dpid)].keys():
                    if swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][2] < q_use_min:
