@@ -35,7 +35,7 @@ SKYPE = 0.3
 table = {}
 D = {}
 IDthread = 1
-time_sleep = 2.5
+time_sleep = 10
 # To send out all ports, we can use either of the special ports
 # OFPP_FLOOD or OFPP_ALL.  We'd like to just use OFPP_FLOOD,
 # but it's not clear if all switches support this, so we make
@@ -127,7 +127,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_dst = l4_packet.srcport
     msg.match.tp_src = l4_packet.dstport
-    msg.hard_timeout = 10
+    msg.hard_timeout = 60
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
@@ -145,7 +145,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_src = l4_packet.srcport
     msg.match.tp_dst = l4_packet.dstport
-    msg.hard_timeout = 10
+    msg.hard_timeout = 60
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = dst_port))
   event.connection.send(msg)
@@ -207,7 +207,7 @@ def _handle_PacketIn (event):
 	  swpo.sw_int_delay[switch][switch_interface] = delay
 	  ###################################################
 	  #############Calculo del q_value###################
-	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.5,0)
+	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,0)
 	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,1)
           actualizar_q_values(eth_packet,switch,switch_interface,delay,0.7,2)
 	  ###################################################
