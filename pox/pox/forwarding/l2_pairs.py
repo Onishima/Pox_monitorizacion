@@ -35,7 +35,7 @@ SKYPE = 0.3
 table = {}
 D = {}
 IDthread = 1
-time_sleep = 10
+time_sleep = 5
 # To send out all ports, we can use either of the special ports
 # OFPP_FLOOD or OFPP_ALL.  We'd like to just use OFPP_FLOOD,
 # but it's not clear if all switches support this, so we make
@@ -168,10 +168,9 @@ def _handle_PacketIn (event):
   #time when the packet is received
   tr = time.time()
   eth_packet = event.parsed
-  log.debug("#######################################################")
-  log.debug("###################_HANDLE_PACKETIN####################")
-  log.debug("#######################################################")
-  log.debug("SRC_DST_APP: %s" % (swpo.src_dst_app))
+  #log.debug("#######################################################")
+  #log.debug("###################_HANDLE_PACKETIN####################")
+  #log.debug("#######################################################")
   # Learn the source
   table[(event.connection,eth_packet.src)] = event.port
   src_port = table.get((event.connection,eth_packet.src))
@@ -211,11 +210,12 @@ def _handle_PacketIn (event):
 	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,1)
           actualizar_q_values(eth_packet,switch,switch_interface,delay,0.7,2)
 	  ###################################################
-	  log.debug("Paquete recibido por el switch %s , enviado por su interfaz %s con un delay total %s" % (switch,switch_interface,delay))
+	  #log.debug("Paquete recibido por el switch %s , enviado por su interfaz %s con un delay total %s" % (switch,switch_interface,delay))
 	  log.debug("SW_INT_DELAY: %s" % (swpo.sw_int_delay))
+	  #log.debug("SRC_DST_APP: %s" % (swpo.src_dst_app))
 	  #log.debug("TIEMPO EN EL QUE FUE CREADO: %s TIEMPO EN EL QUE ES RECIBIDO: %s Delay: %s" % (list2[0],tr,delay))
 	else:
-	  log.debug("SE RECIBE UN PAQUETE COMUN")
+	  #log.debug("SE RECIBE UN PAQUETE COMUN")
 	  if eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
 	    tcp_udp_port = eth_packet.payload.payload.dstport
 	    q_use = 0
@@ -224,7 +224,7 @@ def _handle_PacketIn (event):
 	    ###################################
 	    ################APP1###############
 	    if tcp_udp_port == 12000:
-	      log.debug("PAQUETE 12000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	      #log.debug("PAQUETE 12000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	      if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
 		 #log.debug("swpo.sw_int_delay[event.connection.dpid].keys(): %s" % swpo.sw_int_delay[str(event.connection.dpid)].keys())
 		 for key2 in swpo.sw_int_delay[str(event.connection.dpid)].keys():
@@ -235,7 +235,7 @@ def _handle_PacketIn (event):
 		 dst_port = dst_port_rl
 	      else:
 		src_port = event.port
-	      log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+	      #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
               instalacion_regla_ip(event,eth_packet,dst_port,src_port)
             ###################################
             ################APP2###############
