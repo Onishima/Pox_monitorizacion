@@ -128,7 +128,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_dst = l4_packet.srcport
     msg.match.tp_src = l4_packet.dstport
-    msg.hard_timeout = 17
+    msg.hard_timeout = 52
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
@@ -146,7 +146,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_src = l4_packet.srcport
     msg.match.tp_dst = l4_packet.dstport
-    msg.hard_timeout = 17
+    msg.hard_timeout = 52
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = dst_port))
   event.connection.send(msg)
@@ -160,7 +160,7 @@ def actualizar_q_values(eth_packet, switch, switch_interface, delay, delay_max, 
   else:
     q_use = delay - delay_max
   q_use_current = swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(switch_interface)][app]
-  swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(switch_interface)][app] = round(q_use_current + 0.85*(q_use - q_use_current),1)
+  swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(switch_interface)][app] = round(q_use_current + 0.85*(q_use - q_use_current),2)
 
 # Handle messages the switch has sent us because it has no
 # matching rule.
@@ -213,18 +213,20 @@ def _handle_PacketIn (event):
 	  ###################################################
 	  #log.debug("Paquete recibido por el switch %s , enviado por su interfaz %s con un delay total %s" % (switch,switch_interface,delay))
 	  log.debug("SW_INT_DELAY: %s" % (swpo.sw_int_delay))
-	  #log.debug("SRC_DST_APP: %s" % (swpo.src_dst_app))
+	  log.debug("SRC_DST_APP: %s" % (swpo.src_dst_app))
 	  #log.debug("TIEMPO EN EL QUE FUE CREADO: %s TIEMPO EN EL QUE ES RECIBIDO: %s Delay: %s" % (list2[0],tr,delay))
 	else:
-	  log.debug("SE RECIBE UN PAQUETE COMUN")
+	  #log.debug("SE RECIBE UN PAQUETE COMUN")
 	  if eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
 	    tcp_udp_port = eth_packet.payload.payload.dstport
+	    """
 	    if eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL:
 	      log.debug("PROTOCOLO TCP")
 	    elif eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
 	      log.debug("PROTOCOLO UDP")
-	    log.debug("IP SRC: %s , IP DST: %s" % (eth_packet.payload.srcip,eth_packet.payload.dstip))
-	    log.debug("PORT SRC: %s , PORT DST: %s" % (eth_packet.payload.payload.srcport, eth_packet.payload.payload.dstport))
+            """
+	    #log.debug("IP SRC: %s , IP DST: %s" % (eth_packet.payload.srcip,eth_packet.payload.dstip))
+	    #log.debug("PORT SRC: %s , PORT DST: %s" % (eth_packet.payload.payload.srcport, eth_packet.payload.payload.dstport))
 	    q_use = 0
 	    dst_port_rl = 0
 	    q_use_min = 1.0
@@ -233,7 +235,7 @@ def _handle_PacketIn (event):
 	    ###################################
 	    ################APP1###############
 	    if tcp_udp_port == 12000:
-	      log.debug("PAQUETE 12000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	      #log.debug("PAQUETE 12000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	      if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
 		 #log.debug("swpo.sw_int_delay[event.connection.dpid].keys(): %s" % swpo.sw_int_delay[str(event.connection.dpid)].keys())
 		 list_int = [] #lista de interfaces que cumplen los requisitos de la aplicacion
@@ -248,12 +250,12 @@ def _handle_PacketIn (event):
 		   random_index = randrange(0,len(list_int))
 		   dst_port = list_int[random_index]
 		   log.debug(list_int)
-		   log.debug("DST_PORT: %s" % (dst_port))
+		   #log.debug("DST_PORT: %s" % (dst_port))
 		 else:
 		   dst_port = dst_port_rl
 	      else:
 		src_port = event.port
-	      log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+	      #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
               instalacion_regla_ip(event,eth_packet,dst_port,src_port)
 
 
