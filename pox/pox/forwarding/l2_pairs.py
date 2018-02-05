@@ -34,7 +34,7 @@ SKYPE = 0.3
 table = {}
 D = {}
 IDthread = 1
-time_sleep = 1
+time_sleep = 5
 # To send out all ports, we can use either of the special ports
 # OFPP_FLOOD or OFPP_ALL.  We'd like to just use OFPP_FLOOD,
 # but it's not clear if all switches support this, so we make
@@ -101,10 +101,6 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
   if eth_packet.payload.protocol == pkt.ipv4.ICMP_PROTOCOL and D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.protocol)) is None:
     D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.protocol)] = IDthread
     creacion_thread(event,eth_packet,dst_port,src_port,IDthread)
-  elif eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
-    if D.get((eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.payload.srcport,eth_packet.payload.payload.dstport,eth_packet.payload.protocol)) is None:
-      D[(eth_packet.src,eth_packet.dst,eth_packet.payload.srcip,eth_packet.payload.dstip,eth_packet.payload.payload.srcport,eth_packet.payload.payload.dstport,eth_packet.payload.protocol)] = IDthread
-      creacion_thread(event,eth_packet,dst_port,src_port,IDthread)
 
   log.debug(D)
   msg = of.ofp_flow_mod()
@@ -119,6 +115,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_dst = l4_packet.srcport
     msg.match.tp_src = l4_packet.dstport
+    msg.hard_timeout = 52
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
@@ -136,6 +133,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_src = l4_packet.srcport
     msg.match.tp_dst = l4_packet.dstport
+    msg.hard_timeout = 52
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = dst_port))
   event.connection.send(msg)
@@ -182,6 +180,7 @@ def _handle_PacketIn (event):
 	  old_q_value = swpo.q_table[switch][switch_interface]
 	  swpo.q_table[switch][switch_interface] = swpo.q_table[switch][switch_interface] + 0.85*(delay - swpo.q_table[switch][switch_interface])
 	  swpo.diff_q_table[switch][switch_interface] = abs(old_q_value - swpo.q_table[switch][switch_interface])
+	  """
 	  b = False
 	  key_list = swpo.diff_q_table[switch].keys()
 	  for j in key_list:
@@ -189,6 +188,7 @@ def _handle_PacketIn (event):
 	      b = True
 	  if b == False:
 	    time_sleep = 10
+	  """
 	  """
 	  log.debug("Diferencia: %s" % swpo.diff_q_table[switch][switch_interface])
 	  """
@@ -200,21 +200,27 @@ def _handle_PacketIn (event):
 	  log.debug("SE RECIBE UN PAQUETE COMUN")
 	  if eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
 	    tcp_udp_port = eth_packet.payload.payload.dstport
-	    if tcp_udp_port == 12000:
+	    if eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL:
+	      log.debug("PROTOCOLO TCP")
+	    elif eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
+	      log.debug("PROTOCOLO UDP")
+	    log.debug("PUERTO DESTINO: %s" % (tcp_udp_port))
+	    if tcp_udp_port == 12000 or tcp_udp_port == 13000:
+	      log.debug("APP1 o APP2")
 	      if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
-	        dst_port_rl = 0
+	        dst_port_rl = -1
 	        for x in swpo.q_table[str(event.connection.dpid)].keys():
-		  if dst_port_rl == 0:
+		  if dst_port_rl == -1:
 		    dst_port_rl = x
-		  elif round(swpo.q_table[str(event.connection.dpid)][x],1) <= 0.4 and swpo.q_table[str(event.connection.dpid)][x] <= swpo.q_table[str(event.connection.dpid)][dst_port_rl]:
+		  elif swpo.q_table[str(event.connection.dpid)][x] <= swpo.q_table[str(event.connection.dpid)][dst_port_rl]:
 		    dst_port_rl = x
 		dst_port = int(dst_port_rl)
-	        log.debug("Switch que genera el paquete SKYPE: %s" % event.connection.dpid)
-	        log.debug("PUERTO ESCOGIDO: %s" % dst_port_rl)
+	        #log.debug("Switch que genera el paquete SKYPE: %s" % event.connection.dpid)
+	        #log.debug("PUERTO ESCOGIDO: %s" % dst_port_rl)
 	      else:
 	        src_port = event.port
-	      log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
-	      instalacion_regla_ip(event,eth_packet,dst_port,src_port)
+	    log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+	    instalacion_regla_ip(event,eth_packet,dst_port,src_port)
 	  else:
 	    log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
             instalacion_regla_ip(event,eth_packet,dst_port,src_port)
