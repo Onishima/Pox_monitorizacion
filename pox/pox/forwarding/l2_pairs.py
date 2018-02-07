@@ -178,13 +178,13 @@ def choose_path(path, event, eth_packet,src_port,dst_port):
     if len(list_int) != 0:
       random_index = randrange(0,len(list_int))
       dst_port = list_int[random_index]
-      log.debug(list_int)
+      #log.debug(list_int)
       #log.debug("DST_PORT: %s" % (dst_port))
     else:
       dst_port = dst_port_rl
   else:
     src_port = event.port
-  #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+  log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS. APLICACION: %s INTERFAZ: %s" % (path, dst_port))
   instalacion_regla_ip(event,eth_packet,dst_port,src_port)
 
 
@@ -234,7 +234,7 @@ def _handle_PacketIn (event):
 	  swpo.sw_int_delay[switch][switch_interface] = delay
 	  ###################################################
 	  #############Calculo del q_value###################
-	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.25,0)
+	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,0)
 	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.15,1)
           actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,2)
 	  ###################################################
