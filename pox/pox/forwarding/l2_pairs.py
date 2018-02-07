@@ -29,7 +29,6 @@ from random import shuffle, random, uniform, randrange
 # Even a simple usage of the logger is much nicer than print!
 log = core.getLogger()
 
-SKYPE = 0.3
 # This table maps (switch,MAC-addr) pairs to the port on 'switch' at
 # which we last saw a packet *from* 'MAC-addr'.
 # (In this case, we use a Connection object for the switch.)
@@ -128,7 +127,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_dst = l4_packet.srcport
     msg.match.tp_src = l4_packet.dstport
-    msg.hard_timeout = 52
+    msg.hard_timeout = 62
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
@@ -146,7 +145,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_src = l4_packet.srcport
     msg.match.tp_dst = l4_packet.dstport
-    msg.hard_timeout = 52
+    msg.hard_timeout = 62
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = dst_port))
   event.connection.send(msg)
@@ -161,6 +160,34 @@ def actualizar_q_values(eth_packet, switch, switch_interface, delay, delay_max, 
     q_use = delay - delay_max
   q_use_current = swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(switch_interface)][app]
   swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(switch_interface)][app] = round(q_use_current + 0.85*(q_use - q_use_current),2)
+
+def choose_path(path, event, eth_packet,src_port,dst_port):
+  q_use = 0
+  dst_port_rl = 0
+  q_use_min = 1.0
+  if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
+    #log.debug("swpo.sw_int_delay[event.connection.dpid].keys(): %s" % swpo.sw_int_delay[str(event.connection.dpid)].keys())
+    list_int = [] #lista de interfaces que cumplen los requisitos de la aplicacion
+    for key2 in swpo.sw_int_delay[str(event.connection.dpid)].keys():
+      if swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][path] == 0.0:
+        list_int.append(int(key2))
+      if swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][path] < q_use_min:
+        dst_port_rl = int(key2)
+        q_use_min = swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][path]
+        #log.debug("dst_port_rl: %s , q_use_min: %s" % (dst_port_rl, q_use_min))
+    if len(list_int) != 0:
+      random_index = randrange(0,len(list_int))
+      dst_port = list_int[random_index]
+      log.debug(list_int)
+      #log.debug("DST_PORT: %s" % (dst_port))
+    else:
+      dst_port = dst_port_rl
+  else:
+    src_port = event.port
+  #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+  instalacion_regla_ip(event,eth_packet,dst_port,src_port)
+
+
 
 # Handle messages the switch has sent us because it has no
 # matching rule.
@@ -207,9 +234,9 @@ def _handle_PacketIn (event):
 	  swpo.sw_int_delay[switch][switch_interface] = delay
 	  ###################################################
 	  #############Calculo del q_value###################
-	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,0)
-	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,1)
-          actualizar_q_values(eth_packet,switch,switch_interface,delay,0.7,2)
+	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.25,0)
+	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.15,1)
+          actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,2)
 	  ###################################################
 	  #log.debug("Paquete recibido por el switch %s , enviado por su interfaz %s con un delay total %s" % (switch,switch_interface,delay))
 	  log.debug("SW_INT_DELAY: %s" % (swpo.sw_int_delay))
@@ -219,22 +246,14 @@ def _handle_PacketIn (event):
 	  #log.debug("SE RECIBE UN PAQUETE COMUN")
 	  if eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL or eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
 	    tcp_udp_port = eth_packet.payload.payload.dstport
-	    """
-	    if eth_packet.payload.protocol == pkt.ipv4.TCP_PROTOCOL:
-	      log.debug("PROTOCOLO TCP")
-	    elif eth_packet.payload.protocol == pkt.ipv4.UDP_PROTOCOL:
-	      log.debug("PROTOCOLO UDP")
-            """
 	    #log.debug("IP SRC: %s , IP DST: %s" % (eth_packet.payload.srcip,eth_packet.payload.dstip))
 	    #log.debug("PORT SRC: %s , PORT DST: %s" % (eth_packet.payload.payload.srcport, eth_packet.payload.payload.dstport))
-	    q_use = 0
-	    dst_port_rl = 0
-	    q_use_min = 1.0
-
 
 	    ###################################
 	    ################APP1###############
 	    if tcp_udp_port == 12000:
+	      choose_path(0,event,eth_packet,src_port,dst_port)
+	      """
 	      #log.debug("PAQUETE 12000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	      if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
 		 #log.debug("swpo.sw_int_delay[event.connection.dpid].keys(): %s" % swpo.sw_int_delay[str(event.connection.dpid)].keys())
@@ -257,32 +276,45 @@ def _handle_PacketIn (event):
 		src_port = event.port
 	      #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
               instalacion_regla_ip(event,eth_packet,dst_port,src_port)
-
+	      """
 
             ###################################
             ################APP2###############
             elif tcp_udp_port == 13000:
+	      choose_path(1,event,eth_packet,src_port,dst_port)
+	      """
               log.debug("PAQUETE 13000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
               if str(eth_packet.payload.srcip) in swpo.switch_host[str(event.connection.dpid)].keys():
+		 list_int = [] #lista de interfaces que cumplen los requisitos de la aplicacion
                  for key2 in swpo.sw_int_delay[str(event.connection.dpid)].keys():
+		   if swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][1] == 0.0:
+                     list_int.append(int(key2))
                    if swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][1] < q_use_min:
                      dst_port_rl = int(key2)
                      q_use_min = swpo.src_dst_app[str(eth_packet.payload.srcip)][str(eth_packet.payload.dstip)][int(key2)][1]
-                 dst_port = dst_port_rl
+                 if len(list_int) != 0:
+                   random_index = randrange(0,len(list_int))
+                   dst_port = list_int[random_index]
+                   log.debug(list_int)
+                   #log.debug("DST_PORT: %s" % (dst_port))
+                 else:
+                   dst_port = dst_port_rl
               else:
                 src_port = event.port
-              log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+              #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
               instalacion_regla_ip(event,eth_packet,dst_port,src_port)
+	      """
 	    ###################################
             ###################################
-
+	    #elif tcp_udp_port == 14000:
+	    #choose_path(2,event,eth_packet,src_port,dst_port) 
 
 	    else: #instalar las reglas necesarias si no es ninguna de las aplicaciones predefinidas
-	      log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+	      #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
               instalacion_regla_ip(event,eth_packet,dst_port,src_port)
 
 	  else: #instalar las reglas si el flujo no es TCP o UDP
-	    log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
+	    #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")
             instalacion_regla_ip(event,eth_packet,dst_port,src_port)
 
 def launch (disable_flood = False):
