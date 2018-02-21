@@ -127,7 +127,10 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_dst = l4_packet.srcport
     msg.match.tp_src = l4_packet.dstport
-    msg.hard_timeout = 62
+    #if ip_packet.protocol == pkt.ipv4.TCP_PROTOCOL:
+    #  msg.hard_timeout = 150
+    #else:
+    msg.idle_timeout = 10
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
@@ -145,7 +148,10 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     l4_packet = ip_packet.payload
     msg.match.tp_src = l4_packet.srcport
     msg.match.tp_dst = l4_packet.dstport
-    msg.hard_timeout = 62
+    #if ip_packet.protocol == pkt.ipv4.TCP_PROTOCOL:
+    #msg.hard_timeout = 150
+    #else:
+    msg.idle_timeout = 10
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = dst_port))
   event.connection.send(msg)
