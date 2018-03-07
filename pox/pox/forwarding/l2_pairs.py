@@ -35,7 +35,7 @@ log = core.getLogger()
 table = {}
 D = {}
 IDthread = 1
-time_sleep = 5
+time_sleep = 0.2
 # To send out all ports, we can use either of the special ports
 # OFPP_FLOOD or OFPP_ALL.  We'd like to just use OFPP_FLOOD,
 # but it's not clear if all switches support this, so we make
@@ -128,9 +128,9 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     msg.match.tp_dst = l4_packet.srcport
     msg.match.tp_src = l4_packet.dstport
     #if ip_packet.protocol == pkt.ipv4.TCP_PROTOCOL:
-    #  msg.hard_timeout = 150
+    #msg.hard_timeout = 150
     #else:
-    msg.idle_timeout = 10
+    #msg.idle_timeout = 10
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = event.port))
   event.connection.send(msg)
@@ -151,7 +151,7 @@ def instalacion_regla_ip(event,eth_packet,dst_port,src_port):
     #if ip_packet.protocol == pkt.ipv4.TCP_PROTOCOL:
     #msg.hard_timeout = 150
     #else:
-    msg.idle_timeout = 10
+    #msg.idle_timeout = 10
   msg.priority = 10000
   msg.actions.append(of.ofp_action_output(port = dst_port))
   event.connection.send(msg)
@@ -240,9 +240,9 @@ def _handle_PacketIn (event):
 	  swpo.sw_int_delay[switch][switch_interface] = delay
 	  ###################################################
 	  #############Calculo del q_value###################
-	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,0)
-	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.15,1)
-          actualizar_q_values(eth_packet,switch,switch_interface,delay,0.3,2)
+	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.15,0)
+	  actualizar_q_values(eth_packet,switch,switch_interface,delay,0.2,1)
+          actualizar_q_values(eth_packet,switch,switch_interface,delay,0.05,2)
 	  ###################################################
 	  #log.debug("Paquete recibido por el switch %s , enviado por su interfaz %s con un delay total %s" % (switch,switch_interface,delay))
 	  log.debug("SW_INT_DELAY: %s" % (swpo.sw_int_delay))
@@ -257,7 +257,7 @@ def _handle_PacketIn (event):
 
 	    ###################################
 	    ################APP1###############
-	    if tcp_udp_port == 12000:
+	    if tcp_udp_port >= 1024 and tcp_udp_port < 2024:
 	      choose_path(0,event,eth_packet,src_port,dst_port)
 	      """
 	      #log.debug("PAQUETE 12000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -286,7 +286,7 @@ def _handle_PacketIn (event):
 
             ###################################
             ################APP2###############
-            elif tcp_udp_port == 13000:
+            elif tcp_udp_port >= 2024 and tcp_udp_port < 3024:
 	      choose_path(1,event,eth_packet,src_port,dst_port)
 	      """
               log.debug("PAQUETE 13000!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -312,8 +312,8 @@ def _handle_PacketIn (event):
 	      """
 	    ###################################
             ###################################
-	    #elif tcp_udp_port == 14000:
-	    #choose_path(2,event,eth_packet,src_port,dst_port) 
+	    elif tcp_udp_port >= 3024 and tcp_udp_port < 4024:
+	      choose_path(2,event,eth_packet,src_port,dst_port) 
 
 	    else: #instalar las reglas necesarias si no es ninguna de las aplicaciones predefinidas
 	      #log.debug("ENTRAMOS EN LA INSTALACION DE REGLAS")

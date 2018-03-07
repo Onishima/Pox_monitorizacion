@@ -15,7 +15,8 @@ for x in range(n):
   time.sleep(s[x])
 """
 
-n = 50
+n = 61
+np.random.seed(2)
 s = np.random.poisson(1.0,n)
 print s
 for x in range(len(s)):
